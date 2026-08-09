@@ -6,16 +6,58 @@ from src.ai_fixer import RegulatoryAIFixer
 from src.ectd_exporter import eCTDExporter
 from src.rag_engine import RegulatoryRAGEngine
 
-st.set_page_config(page_title="ReguAI - Global Regulatory Suite", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="ReguAI - Global Regulatory Enterprise Platform", page_icon="🛡️", layout="wide")
 
+# Mock User Accounts Database (For Production, link with PostgreSQL/Supabase)
+USER_DB = {
+    "admin": "pharma2026",
+    "auditor": "regulatory123"
+}
+
+# Session State Initialization for Authentication & Workspaces
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+if "username" not in st.session_state:
+    st.session_state["username"] = None
+if "workspace_history" not in st.session_state:
+    st.session_state["workspace_history"] = []
+
+# --- LOGIN INTERFACE ---
+if not st.session_state["authenticated"]:
+    st.markdown("<h1 style='text-align: center;'>🛡️ ReguAI Enterprise Portal</h1>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center;'>Secure Access - Multi-Jurisdiction Dossier Validator</h3>", unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 1.5, 1])
+    with col2:
+        st.subheader("🔑 Enterprise Login")
+        user_input = st.text_input("Username")
+        pass_input = st.text_input("Password", type="password")
+        
+        if st.button("Log In", use_container_width=True):
+            if user_input in USER_DB and USER_DB[user_input] == pass_input:
+                st.session_state["authenticated"] = True
+                st.session_state["username"] = user_input
+                st.success("Authentication successful! Loading workspace...")
+                st.rerun()
+            else:
+                st.error("Invalid Username or Password. (Default Demo Credentials: `admin` / `pharma2026`)")
+        
+        st.caption("Default Demo Account: Username: `admin` | Password: `pharma2026`")
+    st.stop()
+
+# --- MAIN DASHBOARD (AUTHENTICATED) ---
 # Initialize RAG Engine
 rag = RegulatoryRAGEngine()
 rag.seed_baseline_knowledge()
 
-st.title("🛡️ ReguAI Global Regulatory Enterprise Platform")
-st.markdown("AI-Powered Multi-Jurisdiction Dossier Verification, Vector RAG Search, Groq Auto-Fix, & eCTD Exporter")
+# Sidebar Setup
+st.sidebar.markdown(f"👤 Logged in as: **{st.session_state['username'].upper()}**")
+if st.sidebar.button("Logout"):
+    st.session_state["authenticated"] = False
+    st.session_state["username"] = None
+    st.rerun()
 
-# Sidebar
+st.sidebar.divider()
 st.sidebar.title("Target Jurisdiction")
 
 country_options = {
@@ -32,7 +74,11 @@ scanner = StrictDocumentScanner(selected_code)
 st.sidebar.success(f"Active Engine: **{scanner.rules['agency']}**")
 
 groq_key = st.sidebar.text_input("Groq API Key (For AI Auto-Fixer)", type="password")
-st.sidebar.caption("REST API Server: `http://localhost:8000/docs`")
+st.sidebar.caption("REST API Endpoint: `http://localhost:8000/docs`")
+
+# Header
+st.title("🛡️ ReguAI Global Regulatory Enterprise Platform")
+st.markdown("AI-Powered Multi-Jurisdiction Dossier Verification, Vector RAG Search, Groq Auto-Fix, & eCTD Exporter")
 
 # File Upload
 uploaded_file = st.file_uploader("Upload Dossier or Medical Document (.pdf, .docx, .txt)", type=["pdf", "docx", "txt"])
@@ -45,6 +91,14 @@ if uploaded_file is not None:
     
     results = scanner.scan_content(lines)
     
+    # Save to Session Workspace Audit History
+    st.session_state["workspace_history"].append({
+        "filename": uploaded_file.name,
+        "jurisdiction": selected_code,
+        "status": results["status"],
+        "errors": results["total_errors"]
+    })
+    
     # Scorecards
     col1, col2, col3 = st.columns(3)
     col1.metric("Compliance Status", results["status"], delta_color="normal" if results["status"]=="APPROVED" else "inverse")
@@ -53,19 +107,16 @@ if uploaded_file is not None:
     
     st.divider()
 
-    # Layout Split: Left Viewer / Right Audit
+    # Split Screen View
     col_left, col_right = st.columns([1, 1])
 
     with col_left:
         st.subheader("📄 Document Source Preview")
-        if file_ext == "pdf":
-            st.info("PDF document active. Lines extracted and parsed below.")
         st.text_area("Source Content View", value="\n".join(lines[:50]), height=400, disabled=True)
 
     with col_right:
         st.subheader("🔍 Compliance Audit & Vector RAG Insights")
         
-        # RAG Search Sample
         rag_context = rag.query_context("\n".join(lines[:5]))
         if rag_context:
             st.caption(f"💡 **Vector DB Reference Match:** {rag_context[0]}")
@@ -122,3 +173,9 @@ if uploaded_file is not None:
                 st.download_button("📦 Export eCTD Package (ZIP)", data=zip_bytes, file_name=f"eCTD_Package_{selected_code}.zip", mime="application/zip")
         else:
             st.error(f"Remaining Errors: {re_results['total_errors']}")
+
+# Workspace Audit Log Display
+if st.session_state["workspace_history"]:
+    st.divider()
+    st.subheader("📊 Session Audit Workspace History")
+    st.dataframe(st.session_state["workspace_history"], use_container_width=True)

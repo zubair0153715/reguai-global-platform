@@ -5,3 +5,6 @@ reportlab
 groq
 pytesseract
 pdf2image
+chromadb
+fastapi
+uvicorn

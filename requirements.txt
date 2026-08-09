@@ -9,3 +9,5 @@ chromadb
 fastapi
 uvicorn
 supabase
+stripe
+streamlit-pdf-viewer

@@ -125,7 +125,7 @@ tier_limits = StripeSubscriptionManager.get_tier_features(current_tier)
 st.sidebar.markdown(f"👤 Account: **{current_user.upper()}**")
 st.sidebar.info(f"🛡️ Role: **{current_role}** | Plan: **[{current_tier}]**")
 
-st.sidebar.session_state["lang"] = st.sidebar.selectbox("🌐 UI Language", ["EN", "AR"], index=0 if lang=="EN" else 1)
+st.session_state["lang"] = st.sidebar.selectbox("🌐 UI Language", ["EN", "AR"], index=0 if lang=="EN" else 1)
 
 if current_tier == "Free":
     st.sidebar.warning(f"⚡ Free Scans: {st.session_state['scan_count']}/3")

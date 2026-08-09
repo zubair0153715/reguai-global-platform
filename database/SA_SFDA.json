@@ -1,0 +1,15 @@
+{
+  "agency": "Saudi Food and Drug Authority (SFDA)",
+  "required_keywords": [
+    "SFDA eCTD Module 1",
+    "Saudi Track and Trace (3DTron)",
+    "Arabic PIL (Patient Information Leaflet)",
+    "Stability Zone IVb (40C/75% RH)",
+    "Halal Certification Standard"
+  ],
+  "restricted_terms": [
+    "guaranteed cure",
+    "unregistered alcohol content",
+    "100% safe"
+  ]
+}

@@ -1,0 +1,7 @@
+streamlit
+pypdf
+python-docx
+reportlab
+groq
+pytesseract
+pdf2image

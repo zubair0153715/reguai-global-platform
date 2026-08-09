@@ -1,0 +1,13 @@
+{
+  "agency": "European Medicines Agency (EMA)",
+  "required_keywords": [
+    "Qualified Person (QP) Release",
+    "SmPC (Summary of Product Characteristics)",
+    "EudraVigilance Safety Data",
+    "Annex 1 Sterile Manufacturing"
+  ],
+  "restricted_terms": [
+    "guaranteed cure",
+    "unverified efficacy"
+  ]
+}

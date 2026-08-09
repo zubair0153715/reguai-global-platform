@@ -1,0 +1,15 @@
+{
+  "agency": "Drug Regulatory Authority of Pakistan (DRAP)",
+  "required_keywords": [
+    "Form 5 Registration",
+    "GMP Certificate",
+    "Stability Data Zone IVb",
+    "Labeling Guidelines SRO",
+    "Storage Conditions (Below 30C)"
+  ],
+  "restricted_terms": [
+    "unregistered batch",
+    "guaranteed cure",
+    "miracle medicine"
+  ]
+}

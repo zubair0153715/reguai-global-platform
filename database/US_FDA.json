@@ -1,0 +1,17 @@
+{
+  "agency": "US Food and Drug Administration (FDA)",
+  "required_keywords": [
+    "eCTD Module 1",
+    "21 CFR 312",
+    "ISO 14971 Risk Management",
+    "Adverse Event Protocol",
+    "CMC Batch Analysis",
+    "Storage Temperature (2-8C)"
+  ],
+  "restricted_terms": [
+    "guaranteed cure",
+    "100% safe",
+    "unverified efficacy",
+    "instant permanent relief"
+  ]
+}

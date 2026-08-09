@@ -5,56 +5,71 @@ from src.certificate_generator import CertificateGenerator
 from src.ai_fixer import RegulatoryAIFixer
 from src.ectd_exporter import eCTDExporter
 from src.rag_engine import RegulatoryRAGEngine
+from database.user_db import init_db, register_user, authenticate_user, save_audit_log, get_user_audits
 
 st.set_page_config(page_title="ReguAI - Global Regulatory Enterprise Platform", page_icon="🛡️", layout="wide")
 
-# Mock User Accounts Database (For Production, link with PostgreSQL/Supabase)
-USER_DB = {
-    "admin": "pharma2026",
-    "auditor": "regulatory123"
-}
+# Initialize SQLite DB
+init_db()
 
-# Session State Initialization for Authentication & Workspaces
+# Session State Initialization for Authentication
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 if "username" not in st.session_state:
     st.session_state["username"] = None
-if "workspace_history" not in st.session_state:
-    st.session_state["workspace_history"] = []
 
-# --- LOGIN INTERFACE ---
+# --- AUTHENTICATION INTERFACE (LOGIN & SIGN UP) ---
 if not st.session_state["authenticated"]:
     st.markdown("<h1 style='text-align: center;'>🛡️ ReguAI Enterprise Portal</h1>", unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align: center;'>Secure Access - Multi-Jurisdiction Dossier Validator</h3>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: gray;'>Secure Multi-Jurisdiction Dossier Validator & AI Auto-Fixer</p>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        st.subheader("🔑 Enterprise Login")
-        user_input = st.text_input("Username")
-        pass_input = st.text_input("Password", type="password")
+        tab_login, tab_signup = st.tabs(["🔑 Log In", "📝 Sign Up"])
         
-        if st.button("Log In", use_container_width=True):
-            if user_input in USER_DB and USER_DB[user_input] == pass_input:
-                st.session_state["authenticated"] = True
-                st.session_state["username"] = user_input
-                st.success("Authentication successful! Loading workspace...")
-                st.rerun()
-            else:
-                st.error("Invalid Username or Password. (Default Demo Credentials: `admin` / `pharma2026`)")
-        
-        st.caption("Default Demo Account: Username: `admin` | Password: `pharma2026`")
+        with tab_login:
+            st.subheader("Login to Your Secure Workspace")
+            login_user = st.text_input("Username", key="login_user")
+            login_pass = st.text_input("Password", type="password", key="login_pass")
+            
+            if st.button("Log In", use_container_width=True):
+                if authenticate_user(login_user, login_pass):
+                    st.session_state["authenticated"] = True
+                    st.session_state["username"] = login_user.lower()
+                    st.success("Authentication successful! Redirecting to workspace...")
+                    st.rerun()
+                else:
+                    st.error("Invalid username or password.")
+                    
+        with tab_signup:
+            st.subheader("Create a New Enterprise Account")
+            new_user = st.text_input("Choose Username", key="signup_user")
+            new_pass = st.text_input("Choose Password", type="password", key="signup_pass")
+            confirm_pass = st.text_input("Confirm Password", type="password", key="confirm_pass")
+            
+            if st.button("Create Account", use_container_width=True):
+                if new_pass != confirm_pass:
+                    st.error("Passwords do not match!")
+                else:
+                    success, msg = register_user(new_user, new_pass)
+                    if success:
+                        st.success(msg)
+                    else:
+                        st.error(msg)
+
     st.stop()
 
-# --- MAIN DASHBOARD (AUTHENTICATED) ---
-# Initialize RAG Engine
+# --- MAIN DASHBOARD (AUTHENTICATED & ISOLATED) ---
 rag = RegulatoryRAGEngine()
 rag.seed_baseline_knowledge()
 
 # Sidebar Setup
-st.sidebar.markdown(f"👤 Logged in as: **{st.session_state['username'].upper()}**")
+current_username = st.session_state['username']
+st.sidebar.markdown(f"👤 Account: **{current_username.upper()}** (Secure & Encrypted)")
 if st.sidebar.button("Logout"):
     st.session_state["authenticated"] = False
     st.session_state["username"] = None
+    st.session_state.pop("doc_text", None)
     st.rerun()
 
 st.sidebar.divider()
@@ -74,7 +89,6 @@ scanner = StrictDocumentScanner(selected_code)
 st.sidebar.success(f"Active Engine: **{scanner.rules['agency']}**")
 
 groq_key = st.sidebar.text_input("Groq API Key (For AI Auto-Fixer)", type="password")
-st.sidebar.caption("REST API Endpoint: `http://localhost:8000/docs`")
 
 # Header
 st.title("🛡️ ReguAI Global Regulatory Enterprise Platform")
@@ -91,13 +105,8 @@ if uploaded_file is not None:
     
     results = scanner.scan_content(lines)
     
-    # Save to Session Workspace Audit History
-    st.session_state["workspace_history"].append({
-        "filename": uploaded_file.name,
-        "jurisdiction": selected_code,
-        "status": results["status"],
-        "errors": results["total_errors"]
-    })
+    # Save Private Audit Entry into User Database
+    save_audit_log(current_username, uploaded_file.name, selected_code, results["status"], results["total_errors"])
     
     # Scorecards
     col1, col2, col3 = st.columns(3)
@@ -174,8 +183,9 @@ if uploaded_file is not None:
         else:
             st.error(f"Remaining Errors: {re_results['total_errors']}")
 
-# Workspace Audit Log Display
-if st.session_state["workspace_history"]:
+# Show Isolated History for Current User Only
+user_history = get_user_audits(current_username)
+if user_history:
     st.divider()
-    st.subheader("📊 Session Audit Workspace History")
-    st.dataframe(st.session_state["workspace_history"], use_container_width=True)
+    st.subheader(f"📊 Private Workspace Audit History for ({current_username.upper()})")
+    st.dataframe(user_history, use_container_width=True)

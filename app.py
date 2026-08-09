@@ -5,68 +5,86 @@ from src.certificate_generator import CertificateGenerator
 from src.ai_fixer import RegulatoryAIFixer
 from src.ectd_exporter import eCTDExporter
 from src.rag_engine import RegulatoryRAGEngine
-from database.user_db import init_db, register_user, authenticate_user, save_audit_log, get_user_audits
+from database.user_db import register_user, authenticate_user, save_audit_log, get_user_audits
 
 st.set_page_config(page_title="ReguAI - Global Regulatory Enterprise Platform", page_icon="🛡️", layout="wide")
 
-# Initialize SQLite DB
-init_db()
-
-# Session State Initialization for Authentication
+# State Management Initialization
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 if "username" not in st.session_state:
     st.session_state["username"] = None
 
-# --- AUTHENTICATION INTERFACE (LOGIN & SIGN UP) ---
+# Custom CSS for Professional Portal
+st.markdown("""
+    <style>
+    .auth-box {
+        background-color: #1E293B;
+        padding: 25px;
+        border-radius: 12px;
+        box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.2);
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- AUTHENTICATION PORTAL ---
 if not st.session_state["authenticated"]:
-    st.markdown("<h1 style='text-align: center;'>🛡️ ReguAI Enterprise Portal</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: gray;'>Secure Multi-Jurisdiction Dossier Validator & AI Auto-Fixer</p>", unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 1.5, 1])
+    st.markdown("<h1 style='text-align: center; color: #38BDF8;'>🛡️ ReguAI Enterprise Portal</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #94A3B8;'>AI-Powered Multi-Jurisdiction Dossier Validator & Auto-Fixer</p>", unsafe_allow_html=True)
+    st.write("<br>", unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([1, 1.8, 1])
     with col2:
-        tab_login, tab_signup = st.tabs(["🔑 Log In", "📝 Sign Up"])
+        tab_login, tab_signup = st.tabs(["🔑 Account Login", "📝 New Registration"])
         
         with tab_login:
-            st.subheader("Login to Your Secure Workspace")
-            login_user = st.text_input("Username", key="login_user")
-            login_pass = st.text_input("Password", type="password", key="login_pass")
+            st.subheader("Login to Enterprise Workspace")
+            l_user = st.text_input("Username", key="l_user", placeholder="e.g. admin")
+            l_pass = st.text_input("Password", type="password", key="l_pass", placeholder="••••••••")
             
-            if st.button("Log In", use_container_width=True):
-                if authenticate_user(login_user, login_pass):
+            if st.button("Log In to Dashboard", type="primary", use_container_width=True):
+                if authenticate_user(l_user, l_pass):
                     st.session_state["authenticated"] = True
-                    st.session_state["username"] = login_user.lower()
-                    st.success("Authentication successful! Redirecting to workspace...")
+                    st.session_state["username"] = l_user.strip().lower()
+                    st.success("✅ Login successful! Entering workspace...")
                     st.rerun()
                 else:
-                    st.error("Invalid username or password.")
-                    
-        with tab_signup:
-            st.subheader("Create a New Enterprise Account")
-            new_user = st.text_input("Choose Username", key="signup_user")
-            new_pass = st.text_input("Choose Password", type="password", key="signup_pass")
-            confirm_pass = st.text_input("Confirm Password", type="password", key="confirm_pass")
+                    st.error("❌ Invalid Username or Password.")
             
-            if st.button("Create Account", use_container_width=True):
-                if new_pass != confirm_pass:
-                    st.error("Passwords do not match!")
+            st.caption("Default Demo Account: `admin` | Password: `pharma2026`")
+
+        with tab_signup:
+            st.subheader("Create Free Enterprise Account")
+            s_user = st.text_input("Desired Username", key="s_user", placeholder="Enter username")
+            s_pass = st.text_input("Desired Password", type="password", key="s_pass", placeholder="••••••••")
+            s_confirm = st.text_input("Confirm Password", type="password", key="s_confirm", placeholder="••••••••")
+            
+            if st.button("Register & Create Workspace", use_container_width=True):
+                if s_pass != s_confirm:
+                    st.error("❌ Passwords do not match!")
                 else:
-                    success, msg = register_user(new_user, new_pass)
+                    success, msg = register_user(s_user, s_pass)
                     if success:
-                        st.success(msg)
+                        st.success("🎉 Account created successfully! Logging you in automatically...")
+                        st.session_state["authenticated"] = True
+                        st.session_state["username"] = s_user.strip().lower()
+                        st.rerun()
                     else:
-                        st.error(msg)
+                        st.error(f"❌ {msg}")
 
     st.stop()
 
-# --- MAIN DASHBOARD (AUTHENTICATED & ISOLATED) ---
+# --- MAIN DASHBOARD (AUTHENTICATED) ---
 rag = RegulatoryRAGEngine()
 rag.seed_baseline_knowledge()
 
+current_user = st.session_state['username']
+
 # Sidebar Setup
-current_username = st.session_state['username']
-st.sidebar.markdown(f"👤 Account: **{current_username.upper()}** (Secure & Encrypted)")
-if st.sidebar.button("Logout"):
+st.sidebar.markdown(f"👤 Logged in: **{current_user.upper()}**")
+st.sidebar.caption("🔒 Encrypted Session Active")
+
+if st.sidebar.button("🚪 Logout", use_container_width=True):
     st.session_state["authenticated"] = False
     st.session_state["username"] = None
     st.session_state.pop("doc_text", None)
@@ -105,8 +123,8 @@ if uploaded_file is not None:
     
     results = scanner.scan_content(lines)
     
-    # Save Private Audit Entry into User Database
-    save_audit_log(current_username, uploaded_file.name, selected_code, results["status"], results["total_errors"])
+    # Save User Specific Audit History
+    save_audit_log(current_user, uploaded_file.name, selected_code, results["status"], results["total_errors"])
     
     # Scorecards
     col1, col2, col3 = st.columns(3)
@@ -183,9 +201,9 @@ if uploaded_file is not None:
         else:
             st.error(f"Remaining Errors: {re_results['total_errors']}")
 
-# Show Isolated History for Current User Only
-user_history = get_user_audits(current_username)
+# Display Isolated History for Logged-In User Only
+user_history = get_user_audits(current_user)
 if user_history:
     st.divider()
-    st.subheader(f"📊 Private Workspace Audit History for ({current_username.upper()})")
+    st.subheader(f"📊 Private Workspace Audit Log for ({current_user.upper()})")
     st.dataframe(user_history, use_container_width=True)

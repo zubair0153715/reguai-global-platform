@@ -1,77 +1,82 @@
-import sqlite3
 import hashlib
+import json
 import os
+from datetime import datetime
 
-DB_PATH = "database/users_data.db"
+DATA_FILE = "database/app_users.json"
 
-def init_db():
+def _load_data():
     os.makedirs("database", exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    # Users Table
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            username TEXT PRIMARY KEY,
-            password_hash TEXT NOT NULL
-        )
-    ''')
-    # User Audit History Table (Private Per User)
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS user_audits (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT,
-            filename TEXT,
-            jurisdiction TEXT,
-            status TEXT,
-            errors_count INTEGER,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(username) REFERENCES users(username)
-        )
-    ''')
-    conn.commit()
-    conn.close()
+    if not os.path.exists(DATA_FILE):
+        initial = {
+            "users": {
+                "admin": hashlib.sha256("pharma2026".encode()).hexdigest()
+            },
+            "audits": {}
+        }
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(initial, f, indent=2)
+        return initial
+    try:
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {"users": {"admin": hashlib.sha256("pharma2026".encode()).hexdigest()}, "audits": {}}
+
+def _save_data(data):
+    os.makedirs("database", exist_ok=True)
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
 
 def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+    return hashlib.sha256(password.strip().encode()).hexdigest()
 
 def register_user(username: str, password: str) -> tuple[bool, str]:
-    if not username or not password:
-        return False, "Username and password cannot be empty."
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT username FROM users WHERE username = ?", (username.lower(),))
-    if c.fetchone():
-        conn.close()
-        return False, "Username already exists. Please choose another."
+    username = username.strip().lower()
+    password = password.strip()
     
-    c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)", 
-              (username.lower(), hash_password(password)))
-    conn.commit()
-    conn.close()
-    return True, "Account created successfully! You can now log in."
+    if not username or len(username) < 3:
+        return False, "Username must be at least 3 characters long."
+    if not password or len(password) < 4:
+        return False, "Password must be at least 4 characters long."
+
+    data = _load_data()
+    if username in data["users"]:
+        return False, f"Username '{username}' is already taken. Please log in or choose another name."
+
+    data["users"][username] = hash_password(password)
+    _save_data(data)
+    return True, "Account successfully created!"
 
 def authenticate_user(username: str, password: str) -> bool:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT password_hash FROM users WHERE username = ?", (username.lower(),))
-    result = c.fetchone()
-    conn.close()
-    if result and result[0] == hash_password(password):
-        return True
+    username = username.strip().lower()
+    password = password.strip()
+    
+    data = _load_data()
+    if username in data["users"]:
+        return data["users"][username] == hash_password(password)
     return False
 
 def save_audit_log(username: str, filename: str, jurisdiction: str, status: str, errors_count: int):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("INSERT INTO user_audits (username, filename, jurisdiction, status, errors_count) VALUES (?, ?, ?, ?, ?)",
-              (username.lower(), filename, jurisdiction, status, errors_count))
-    conn.commit()
-    conn.close()
+    username = username.strip().lower()
+    data = _load_data()
+    
+    if "audits" not in data:
+        data["audits"] = {}
+    if username not in data["audits"]:
+        data["audits"][username] = []
+
+    entry = {
+        "Filename": filename,
+        "Jurisdiction": jurisdiction,
+        "Status": status,
+        "Errors": errors_count,
+        "Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    data["audits"][username].insert(0, entry)
+    _save_data(data)
 
 def get_user_audits(username: str):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT filename, jurisdiction, status, errors_count, timestamp FROM user_audits WHERE username = ? ORDER BY timestamp DESC", (username.lower(),))
-    rows = c.fetchall()
-    conn.close()
-    return [{"Filename": r[0], "Jurisdiction": r[1], "Status": r[2], "Errors": r[3], "Date": r[4]} for r in rows]
+    username = username.strip().lower()
+    data = _load_data()
+    return data.get("audits", {}).get(username, [])
